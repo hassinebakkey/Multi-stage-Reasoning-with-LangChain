@@ -13,21 +13,21 @@ import faiss
 # ========================================
 # CONFIGURATION
 # ========================================
-print("Chargement de la configuration...")
+print("Loading configuration...")
 load_dotenv()
 
 endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 key = os.getenv("AZURE_OPENAI_KEY")
 
 if not endpoint or not key:
-    raise ValueError("Erreur: AZURE_OPENAI_ENDPOINT et AZURE_OPENAI_KEY doivent être définis dans .env")
+    raise ValueError("Error: AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY must be defined in .env")
 
-print(f"Endpoint configuré: {endpoint}")
+print(f"Endpoint configured: {endpoint}")
 
 # ========================================
-# CRÉATION DES DOCUMENTS (Sample Dataset)
+# CREATING DOCUMENTS (Sample Dataset)
 # ========================================
-print("\nCréation de la base de connaissances...")
+print("\nCreating knowledge base...")
 
 documents = [
     Document(
@@ -45,12 +45,12 @@ documents = [
 ]
 ids = ["1", "2", "3"]
 
-print(f"{len(documents)} documents créés")
+print(f"{len(documents)} documents created")
 
 # ========================================
-# GÉNÉRATION DES EMBEDDINGS
+# GENERATING EMBEDDINGS
 # ========================================
-print("\nInitialisation du modèle d'embeddings...")
+print("\nInitializing embedding model...")
 
 embedding_function = AzureOpenAIEmbeddings(
     deployment="text-embedding-ada-002",
@@ -60,19 +60,19 @@ embedding_function = AzureOpenAIEmbeddings(
     chunk_size=1
 )
 
-print("Modèle d'embeddings initialisé")
+print("Embedding model initialized")
 
 # ========================================
-# CRÉATION DE L'INDEX VECTORIEL (FAISS)
+# CREATING VECTOR INDEX (FAISS)
 # ========================================
-print("\nCréation de l'index vectoriel...")
+print("\nCreating vector index...")
 
-# Créer l'index FAISS
+# Create FAISS index
 index = faiss.IndexFlatL2(
     len(embedding_function.embed_query("Azure Databricks is a fast, easy, and collaborative Apache Spark-based analytics platform."))
 )
 
-# Créer le vector store
+# Create vector store
 vector_store = FAISS(
     embedding_function=embedding_function,
     index=index,
@@ -80,22 +80,22 @@ vector_store = FAISS(
     index_to_docstore_id={}
 )
 
-# Ajouter les documents au vector store
+# Add documents to vector store
 vector_store.add_documents(documents=documents, ids=ids)
-print("Documents vectorisés et indexés")
+print("Documents vectorized and indexed")
 
 # ========================================
-# CRÉATION DU RETRIEVER
+# CREATING RETRIEVER
 # ========================================
-print("\nCréation du retriever...")
+print("\nCreating retriever...")
 
 retriever = VectorStoreRetriever(vectorstore=vector_store)
-print("Retriever prêt")
+print("Retriever ready")
 
 # ========================================
-# INITIALISATION DU LLM (GPT-4o)
+# INITIALIZING LLM (GPT-4o)
 # ========================================
-print("\nInitialisation du modèle GPT-4o...")
+print("\nInitializing GPT-4o model...")
 
 llm = AzureChatOpenAI(
     deployment_name="gpt-4o",
@@ -105,12 +105,12 @@ llm = AzureChatOpenAI(
     openai_api_key=key,
 )
 
-print("GPT-4o initialisé")
+print("GPT-4o initialized")
 
 # ========================================
-# CRÉATION DE LA CHAÎNE 1 : QA SYSTEM
+# CREATING CHAIN 1: QA SYSTEM
 # ========================================
-print("\nCréation de la chaîne QA...")
+print("\nCreating QA chain...")
 
 system_prompt = (
     "Use the given context to answer the question. "
@@ -127,7 +127,7 @@ prompt1 = ChatPromptTemplate.from_messages([
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-# Chaîne QA avec LCEL
+# QA Chain with LCEL
 qa_chain1 = (
     {
         "context": retriever | format_docs,
@@ -138,12 +138,12 @@ qa_chain1 = (
     | StrOutputParser()
 )
 
-print("Chaîne QA créée")
+print("QA chain created")
 
 # ========================================
-# CRÉATION DE LA CHAÎNE 2 : SOCIAL MEDIA
+# CREATING CHAIN 2: SOCIAL MEDIA
 # ========================================
-print("\nCréation de la chaîne multi-stage...")
+print("\nCreating multi-stage chain...")
 
 prompt2 = ChatPromptTemplate.from_template(
     "Create a social media post based on this summary: {summary}"
@@ -151,44 +151,44 @@ prompt2 = ChatPromptTemplate.from_template(
 
 qa_chain2 = ({"summary": qa_chain1} | prompt2 | llm | StrOutputParser())
 
-print("Chaîne multi-stage créée")
+print("Multi-stage chain created")
 
 # ========================================
 # TESTS
 # ========================================
 print("\n" + "="*60)
-print("TEST 1 : Question directe (Chaîne QA)")
+print("TEST 1: Direct Question (QA Chain)")
 print("="*60)
 
 question1 = "What is Azure Databricks?"
 print(f"\nQuestion: {question1}")
-print("\nRéponse:")
+print("\nAnswer:")
 
 result1 = qa_chain1.invoke(question1)
 print(result1)
 
 print("\n" + "="*60)
-print("TEST 2 : Multi-stage reasoning (QA → Social Media)")
+print("TEST 2: Multi-stage Reasoning (QA → Social Media)")
 print("="*60)
 
 question2 = "How can we use LangChain?"
 print(f"\nQuestion: {question2}")
-print("\nPost sur les réseaux sociaux:")
+print("\nSocial media post:")
 
 result2 = qa_chain2.invoke(question2)
 print(result2)
 
 print("\n" + "="*60)
-print("TEST 3 : Question sur GPT-4")
+print("TEST 3: Question about GPT-4")
 print("="*60)
 
 question3 = "What is GPT-4?"
 print(f"\nQuestion: {question3}")
-print("\nPost sur les réseaux sociaux:")
+print("\nSocial media post:")
 
 result3 = qa_chain2.invoke(question3)
 print(result3)
 
 print("\n" + "="*60)
-print("Tous les tests terminés avec succès!")
+print("All tests completed successfully!")
 print("="*60)
